@@ -34,7 +34,6 @@ def parse_args():
     parser.add_argument('--resource_files', type=str)
     parser.add_argument('--eval_resource_files', type=str)
     parser.add_argument('--img_source', default=None, type=str, choices=['color', 'noise', 'images', 'video', 'none'])
-    parser.add_argument('--total_frames', default=1000, type=int)
     # replay buffer
     parser.add_argument('--replay_buffer_capacity', default=1000000, type=int)
     # train
@@ -42,7 +41,7 @@ def parse_args():
     parser.add_argument('--init_steps', default=1000, type=int)
     parser.add_argument('--num_train_steps', default=1000000, type=int)
     parser.add_argument('--batch_size', default=512, type=int)
-    parser.add_argument('--hidden_dim', default=256, type=int)
+    parser.add_argument('--hidden_dim', default=1024, type=int)
     parser.add_argument('--k', default=3, type=int, help='number of steps for inverse model')
     parser.add_argument('--bisim_coef', default=0.5, type=float, help='coefficient for bisim terms')
     parser.add_argument('--load_encoder', default=None, type=str)
@@ -52,7 +51,7 @@ def parse_args():
     # critic
     parser.add_argument('--critic_lr', default=1e-3, type=float)
     parser.add_argument('--critic_beta', default=0.9, type=float)
-    parser.add_argument('--critic_tau', default=0.005, type=float)
+    parser.add_argument('--critic_tau', default=0.01, type=float)
     parser.add_argument('--critic_target_update_freq', default=2, type=int)
     # actor
     parser.add_argument('--actor_lr', default=1e-3, type=float)
@@ -64,7 +63,7 @@ def parse_args():
     parser.add_argument('--encoder_type', default='pixel', type=str, choices=['pixel', 'pixelCarla096', 'pixelCarla098', 'identity'])
     parser.add_argument('--encoder_feature_dim', default=50, type=int)
     parser.add_argument('--encoder_lr', default=1e-3, type=float)
-    parser.add_argument('--encoder_tau', default=0.005, type=float)
+    parser.add_argument('--encoder_tau', default=0.05, type=float)
     parser.add_argument('--encoder_stride', default=1, type=int)
     parser.add_argument('--decoder_type', default='pixel', type=str, choices=['pixel', 'identity', 'contrastive', 'reward', 'inverse', 'reconstruction'])
     parser.add_argument('--decoder_lr', default=1e-3, type=float)
@@ -74,9 +73,9 @@ def parse_args():
     parser.add_argument('--num_filters', default=32, type=int)
     # sac
     parser.add_argument('--discount', default=0.99, type=float)
-    parser.add_argument('--init_temperature', default=0.01, type=float)
-    parser.add_argument('--alpha_lr', default=1e-3, type=float)
-    parser.add_argument('--alpha_beta', default=0.9, type=float)
+    parser.add_argument('--init_temperature', default=0.1, type=float)
+    parser.add_argument('--alpha_lr', default=1e-4, type=float)
+    parser.add_argument('--alpha_beta', default=0.5, type=float)
     # misc
     parser.add_argument('--seed', default=1, type=int)
     parser.add_argument('--exp', default='exp', type=str)
