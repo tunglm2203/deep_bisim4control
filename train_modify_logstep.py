@@ -136,7 +136,7 @@ def evaluate(env, agent, video, num_episodes, L, step, env_step, device=None, em
                 brake += info['brake']
                 count += 1
 
-            video.record(env)
+            # video.record(env)
             episode_reward += reward
 
         # metrics:
@@ -328,7 +328,7 @@ def main():
             seed=args.seed,
             visualize_reward=False,
             from_pixels=(args.encoder_type == 'pixel'),
-            height=args.image_size,
+            # height=args.image_size,
             width=args.image_size,
             frame_skip=args.action_repeat,
             difficulty='easy',
@@ -442,7 +442,7 @@ def main():
         if step >= args.init_steps:
             num_updates = args.init_steps if step == args.init_steps else 1
             for _ in range(num_updates):
-                agent.update(replay_buffer, L, env_step)
+                agent.update(replay_buffer, L, step, env_step)
 
         curr_reward = reward
         next_obs, reward, done, _ = env.step(action)
