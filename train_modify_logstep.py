@@ -34,6 +34,7 @@ def parse_args():
     parser.add_argument('--resource_files', type=str)
     parser.add_argument('--eval_resource_files', type=str)
     parser.add_argument('--img_source', default=None, type=str, choices=['color', 'noise', 'images', 'video', 'none'])
+    parser.add_argument('--total_frames', default=1000, type=int)
     # replay buffer
     parser.add_argument('--replay_buffer_capacity', default=1000000, type=int)
     # train
@@ -51,7 +52,7 @@ def parse_args():
     # critic
     parser.add_argument('--critic_lr', default=1e-3, type=float)
     parser.add_argument('--critic_beta', default=0.9, type=float)
-    parser.add_argument('--critic_tau', default=0.01, type=float)
+    parser.add_argument('--critic_tau', default=0.005, type=float)
     parser.add_argument('--critic_target_update_freq', default=2, type=int)
     # actor
     parser.add_argument('--actor_lr', default=1e-3, type=float)
@@ -63,7 +64,7 @@ def parse_args():
     parser.add_argument('--encoder_type', default='pixel', type=str, choices=['pixel', 'pixelCarla096', 'pixelCarla098', 'identity'])
     parser.add_argument('--encoder_feature_dim', default=50, type=int)
     parser.add_argument('--encoder_lr', default=1e-3, type=float)
-    parser.add_argument('--encoder_tau', default=0.05, type=float)
+    parser.add_argument('--encoder_tau', default=0.005, type=float)
     parser.add_argument('--encoder_stride', default=1, type=int)
     parser.add_argument('--decoder_type', default='pixel', type=str, choices=['pixel', 'identity', 'contrastive', 'reward', 'inverse', 'reconstruction'])
     parser.add_argument('--decoder_lr', default=1e-3, type=float)
@@ -73,7 +74,7 @@ def parse_args():
     parser.add_argument('--num_filters', default=32, type=int)
     # sac
     parser.add_argument('--discount', default=0.99, type=float)
-    parser.add_argument('--init_temperature', default=0.1, type=float)
+    parser.add_argument('--init_temperature', default=0.01, type=float)
     parser.add_argument('--alpha_lr', default=1e-4, type=float)
     parser.add_argument('--alpha_beta', default=0.5, type=float)
     # misc
@@ -92,7 +93,7 @@ def parse_args():
     return args
 
 
-def evaluate(env, agent, video, num_episodes, L, step, env_step, device=None, embed_viz_dir=None, do_carla_metrics=None):
+def evaluate(env, agent, video, num_episodes, L, step, device=None, embed_viz_dir=None, do_carla_metrics=None):
     # carla metrics:
     reason_each_episode_ended = []
     distance_driven_each_episode = []
@@ -112,7 +113,7 @@ def evaluate(env, agent, video, num_episodes, L, step, env_step, device=None, em
         dist_driven_this_episode = 0.
 
         obs = env.reset()
-        # video.init(enabled=(i == 0))
+        video.init(enabled=(i == 0))
         done = False
         episode_reward = 0
         while not done:
@@ -135,7 +136,7 @@ def evaluate(env, agent, video, num_episodes, L, step, env_step, device=None, em
                 brake += info['brake']
                 count += 1
 
-            # video.record(env)
+            video.record(env)
             episode_reward += reward
 
         # metrics:
@@ -143,22 +144,22 @@ def evaluate(env, agent, video, num_episodes, L, step, env_step, device=None, em
             reason_each_episode_ended.append(info['reason_episode_ended'])
             distance_driven_each_episode.append(dist_driven_this_episode)
 
-        # video.save('%d.mp4' % step)
-        L.log('eval/episode_reward', episode_reward, env_step)
+        video.save('%d.mp4' % step)
+        L.log('eval/episode_reward', episode_reward, step)
         all_ep_rewards.append(episode_reward)
 
     if embed_viz_dir:
         dataset = {'obs': obses, 'values': values, 'embeddings': embeddings}
-        torch.save(dataset, os.path.join(embed_viz_dir, 'train_dataset_{}.pt'.format(env_step)))
+        torch.save(dataset, os.path.join(embed_viz_dir, 'train_dataset_{}.pt'.format(step)))
 
     mean_ep_reward = np.mean(all_ep_rewards)
     best_ep_reward = np.max(all_ep_rewards)
     std_ep_reward = np.std(all_ep_rewards)
-    L.log('eval/mean_episode_reward', mean_ep_reward, env_step)
-    L.log('eval/best_episode_reward', best_ep_reward, env_step)
-    L.log('eval/std_episode_reward', std_ep_reward, env_step)
+    L.log('eval/mean_episode_reward', mean_ep_reward, step)
+    L.log('eval/best_episode_reward', best_ep_reward, step)
+    L.log('eval/std_episode_reward', std_ep_reward, step)
 
-    L.dump(env_step)
+    L.dump(step)
 
     if do_carla_metrics:
         print('METRICS--------------------------')
@@ -394,31 +395,26 @@ def main():
 
     episode, episode_reward, done = 0, 0, True
     start_time = time.time()
-    env_step = 0
     for step in tqdm(range(args.num_train_steps + 1)):
-
-        # evaluate agent periodically
-        if step % args.eval_freq == 0:
-            print('[INFO] {}-{}- Experiment: {} - seed:{}'.format(args.domain_name, args.task_name, args.exp, args.seed))
-            L.log('eval/episode', episode, env_step)
-            evaluate(eval_env, agent, video, args.num_eval_episodes, L, step, env_step)
-            if args.save_model:
-                agent.save(model_dir, step)
-            if args.save_buffer:
-                replay_buffer.save(buffer_dir)
-
         if done:
             if args.decoder_type == 'inverse':
                 for i in range(1, args.k):  # fill k_obs with 0s if episode is done
                     replay_buffer.k_obses[replay_buffer.idx - i] = 0
             if step > 0:
-                if step % args.log_interval == 0:
-                    L.log('train/duration', time.time() - start_time, env_step)
-                    L.dump(env_step)
+                L.log('train/duration', time.time() - start_time, step)
                 start_time = time.time()
+                L.dump(step)
 
-            if step % args.log_interval == 0:
-                L.log('train/episode_reward', episode_reward, env_step)
+            # evaluate agent periodically
+            if step % args.eval_freq == 0:
+                L.log('eval/episode', episode, step)
+                evaluate(eval_env, agent, video, args.num_eval_episodes, L, step)
+                if args.save_model:
+                    agent.save(model_dir, step)
+                if args.save_buffer:
+                    replay_buffer.save(buffer_dir)
+
+            L.log('train/episode_reward', episode_reward, step)
 
             obs = env.reset()
             done = False
@@ -427,8 +423,7 @@ def main():
             episode += 1
             reward = 0
 
-            if step % args.log_interval == 0:
-                L.log('train/episode', episode, env_step)
+            L.log('train/episode', episode, step)
 
         # sample action for data collection
         if step < args.init_steps:
@@ -441,7 +436,7 @@ def main():
         if step >= args.init_steps:
             num_updates = args.init_steps if step == args.init_steps else 1
             for _ in range(num_updates):
-                agent.update(replay_buffer, L, step, env_step)
+                agent.update(replay_buffer, L, step)
 
         curr_reward = reward
         next_obs, reward, done, _ = env.step(action)
@@ -457,7 +452,6 @@ def main():
 
         obs = next_obs
         episode_step += 1
-        env_step += 1 * args.action_repeat
 
 
 def collect_data(env, agent, num_rollouts, path_length, checkpoint_path):
